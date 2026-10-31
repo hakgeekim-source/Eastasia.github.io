@@ -1989,7 +1989,7 @@ function chkHistCastle(to,af){
 const HW=[
  [191,1,'원소',[5]],[192,3,'조조',[37,73,74]],[194,2,'조조',[3,75]],[196,1,'조조',[1]],[197,2,'조조',[39,40]],
  [199,0,'원소',[8,36,69]],[204,2,'조조',[5,38,70]],[205,3,'조조',[6,7,84,85,47]],[207,3,'조조',[8,36,69]],
- [208,3,'유비',[13],[0,1]],[208,3,'조조',[11,12],[0,1]],[211,3,'조조',[4,72,64]],[213,2,'조조',[16,48]],[215,2,'조조',[15,65]],
+ [208,3,'유비',[13],[0,1]],[208,3,'조조',[11,12],[0,1]],[211,3,'조조',[4,72,64]],[212,2,'조조',[16,48]],[213,2,'조조',[16,48]],[215,2,'조조',[15,65]],
  [209,3,'손권|손책',[9,10,41,42,43,77,80,81,82]],[209,3,'유비',[13,44,45,78,79]],[214,1,'유비',[14,46,66,67]],
  [219,2,'유비',[15,65,76]],[222,1,'손권|손책',[13,44,45,78,79]],[222,2,'유비',[67]],
  [225,2,'유비|촉',[32,68]],[228,0,'유비|촉',[64]],[228,2,'조조|위',[64]],[229,2,'유비|촉',[65]],
@@ -2085,6 +2085,23 @@ function histPosting(){
       if(tgt>=0&&tgt!==o.prov&&(fi!==S.player||full||stray)){ if(cnt[o.prov]!=null) cnt[o.prov]--; cnt[tgt]++; o.prov=tgt; }
     });
   });
+}
+
+// ===================== ★ 역사 합류: 조운·황충(적벽대전 이후) / 마초·마운록(조조에게 패한 뒤) → 유비 세력 =====================
+function histJoin(){
+  if(SCENARIOS[S.scen].y>=9000) return; S.hj=S.hj||{};
+  const fl=facOfLeader('유비'); if(fl<0) return;
+  const F=SCENARIOS[S.scen].facs, t=S.y*4+S.s;
+  const mv=(nm,dst)=>{ const o=ensureOfficer(nm,dst,fl); if(!o||o.fac===-99||o.fac===fl||o.fac===S.player) return false; o.fac=fl; o.prov=dst; o.loy=90; return true; };
+  if(!S.hj.zh&&t>=209*4){ S.hj.zh=1; const dst=S.provs[13].owner===fl?13:S.caps[fl];
+    const got=['조운','황충'].filter(nm=>mv(nm,dst));
+    if(got.length){ log('🐉 적벽대전 이후 <b>'+got.join('·')+'</b>이(가) <b>'+F[fl][0]+'</b>에 합류했습니다.','hist'); flash(got.join('·')+' 유비 합류'); } }
+  if(!S.hj.mc&&t>=212*4){ const mi=F.findIndex(f=>String(f[7]||f[0]).startsWith('마등'));
+    if(mi<0){ if(S.y>=216) S.hj.mc=1; }
+    else if(S.dead[mi]||!S.provs.some(p=>p.owner===mi)){ S.hj.mc=1; const dst=S.provs[14].owner===fl?14:S.caps[fl];
+      if(!S.offs.some(x=>x.name==='마운록')){ const lf=lifeFor('마운록',190,S.y,false); const ob=Object.assign(deriveStats('마운록',85,60,80),{name:'마운록',fac:-1,war:85,intel:60,cha:80,prov:dst,sex:'f',birth:lf.birth,death:lf.death,dseason:lf.dseason,loy:90,exp:0,spouse:-1,kids:[]}); applyOvr(ob); S.offs.push(ob); }
+      const got=['마초','마운록'].filter(nm=>mv(nm,dst));
+      if(got.length){ log('🐎 조조에게 패한 <b>'+got.join('·')+'</b>이(가) <b>'+F[fl][0]+'</b>으로 몸을 의탁했습니다.','hist'); flash(got.join('·')+' 유비 합류'); } } }
 }
 function aiTurn(){
   S.provs.forEach((st,i)=>{
@@ -2260,7 +2277,7 @@ function advanceSeason(){
     marriageKids();                                               // ★ 결혼한 부부의 자녀 출생 (부부당 무작위 1~3명)
   }
   agingDeaths();
-  seasonSpawn(false); checkEmperor(); checkHistEvents(); histWars(); histRecruit(); histPosting();
+  seasonSpawn(false); checkEmperor(); checkHistEvents(); histWars(); histRecruit(); histJoin(); histPosting();
   S.provs.forEach(p => {
     if(p.owner < 0 || S.dead[p.owner]) return;
     p.gold += 150; p.food -= Math.floor(p.troops/(S.s===3?6:8));
