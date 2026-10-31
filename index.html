@@ -2010,6 +2010,12 @@ function facFind(ms){
 }
 function histTake(fi,pi){
   const p=S.provs[pi], of=p.owner; if(of===fi) return false;
+  if(pi===11&&of>=0&&facOfLeader('유비')===of){   // ★ 신야의 유비 세력은 포로가 되지 않고 유비 진영(형주 등)으로 이동한다
+    const dest=(S.provs[13].owner===of)?13:S.provs.findIndex((q,i)=>q.owner===of&&i!==pi);
+    if(dest>=0){ let n=0; S.offs.forEach(x=>{ if(x.fac===of&&x.prov===pi){ x.prov=dest; n++; } });
+      S.provs[dest].troops=capClamp(dest,S.provs[dest].troops+Math.floor(p.troops*0.8));
+      p.owner=fi; p.troops=Math.max(800,Math.floor(p.troops*0.2)); p.gold=Math.floor(p.gold*0.8); p.food=Math.floor(p.food*0.8);
+      log('🏃 <b>'+SCENARIOS[S.scen].facs[of][0]+'</b>의 장수 '+n+'명과 군대가 신야를 떠나 <b>'+PROV_DEF[dest][0]+'</b>(으)로 철수했습니다 (포로 없음).','hist'); return true; } }
   if(of===S.player){   // 플레이어 영지는 인접 거점에서 실제 공격으로 진행
     const src=PROV_DEF[pi][4].filter(j=>S.provs[j].owner===fi&&S.provs[j].troops>=1200).sort((a,b)=>S.provs[b].troops-S.provs[a].troops)[0];
     if(src==null) return false;
@@ -2056,6 +2062,29 @@ function histWars(){
       log('📜 <b>역사</b> — <b>'+SCENARIOS[S.scen].facs[fi][0]+'</b>이(가) '+got.join('·')+'을(를) 차지했습니다.','hist'); }
   });
   checkVictory();
+}
+
+// ===================== ★ 무장 역사 배치: 한 성에 몰린 무장을 역사상 근무지·주변 영지로 자동 분산 =====================
+const POST={'관우':[[209,13]],'장비':[[209,13],[214,46]],'조운':[[209,13],[214,14]],'제갈량':[[209,13],[214,14]],'유비':[[209,13],[214,14]],'법정':[[214,14]],'마초':[[214,14]],'황충':[[219,15]],'위연':[[219,15]],'강유':[[228,15]],'마량':[[209,44]],'손건':[[209,13]],'미축':[[209,44]],'간옹':[[209,13]],
+ '하후돈':[[200,0]],'하후연':[[211,4],[215,15]],'조인':[[208,12]],'장료':[[215,42]],'악진':[[215,42]],'이전':[[215,42]],'서황':[[208,12]],'사마의':[[208,0]],'장합':[[215,15]],'조홍':[[200,4]],'순욱':[[200,0]],'만총':[[208,12]],
+ '주유':[[209,13]],'노숙':[[209,80]],'여몽':[[219,13]],'육손':[[222,13]],'감녕':[[209,80]],'태사자':[[209,81]],'정보':[[209,41]],'황개':[[209,44]],'장소':[[209,41]],'능통':[[209,42]],'주태':[[209,77]],'한당':[[209,82]],
+ '곽가':[[200,0]],'순유':[[200,0]],'가후':[[200,0]],'정욱':[[200,2]],'문빙':[[208,12]],'우금':[[208,12],[219,12]],'조진':[[220,4]],'곽회':[[228,64]],'등애':[[250,11]],'종회':[[260,0]],'하후패':[[240,4]],
+ '장흠':[[209,82]],'반장':[[220,13]],'제갈근':[[219,13]],'고옹':[[209,41]],'보즐':[[220,17]],'여범':[[209,81]],'주환':[[222,42]],'전종':[[222,41]],'서성':[[222,42]],'정봉':[[250,42]],'육항':[[260,13]],'제갈각':[[240,41]]};
+const FULLPOST=f=>/조조|손권|손책|^위|^오/.test(String(f[7]||'')+'|'+String(f[0]));   // ★ 조조·손권(위·오) 세력은 플레이어여도 전원 자동 배치
+function histPosting(){
+  if(SCENARIOS[S.scen].y>=9000) return;
+  const F=SCENARIOS[S.scen].facs, lordOf=fi=>String(F[fi][2]).replace(/\s+/g,'');
+  F.forEach((f,fi)=>{ if(S.dead[fi]) return;
+    const provs=S.provs.map((p,i)=>p.owner===fi?i:-1).filter(i=>i>=0); if(provs.length<2) return;
+    const mine=S.offs.filter(o=>o.fac===fi&&o.name!==lordOf(fi)), cnt={}, full=true, avg=Math.max(2,Math.ceil(mine.length/provs.length)); provs.forEach(i=>cnt[i]=0);
+    S.offs.forEach(o=>{ if(o.fac===fi&&cnt[o.prov]!=null) cnt[o.prov]++; });
+    mine.forEach(o=>{
+      let tgt=-1; const tb=POST[o.name]; if(tb){ tb.forEach(e=>{ if(e[0]<=S.y&&S.provs[e[1]].owner===fi) tgt=e[1]; }); }
+      const stray=cnt[o.prov]==null, crowd=!stray&&cnt[o.prov]>(full?avg:5);
+      if(tgt<0&&(stray||crowd)){ const room=provs.filter(i=>i!==o.prov&&cnt[i]<avg), pool=room.length?room:provs.filter(i=>i!==o.prov); tgt=pool.length?pool[Math.floor(Math.random()*pool.length)]:-1; }   // ★ 역사 자료가 없는 장수는 여유 있는 영지로 무작위 분배
+      if(tgt>=0&&tgt!==o.prov&&(fi!==S.player||full||stray)){ if(cnt[o.prov]!=null) cnt[o.prov]--; cnt[tgt]++; o.prov=tgt; }
+    });
+  });
 }
 function aiTurn(){
   S.provs.forEach((st,i)=>{
@@ -2231,7 +2260,7 @@ function advanceSeason(){
     marriageKids();                                               // ★ 결혼한 부부의 자녀 출생 (부부당 무작위 1~3명)
   }
   agingDeaths();
-  seasonSpawn(false); checkEmperor(); checkHistEvents(); histWars(); histRecruit();
+  seasonSpawn(false); checkEmperor(); checkHistEvents(); histWars(); histRecruit(); histPosting();
   S.provs.forEach(p => {
     if(p.owner < 0 || S.dead[p.owner]) return;
     p.gold += 150; p.food -= Math.floor(p.troops/(S.s===3?6:8));
